@@ -42,7 +42,9 @@ export async function POST(request) {
             resource_type: isPdf ? "raw" : "auto",
             type: "upload",
             folder: isPdf ? "legacy-capsule/templates" : "legacy-capsule",
-            public_id: name.replace(/\.[^./]+$/, ""),
+            public_id: isPdf
+              ? name.replace(/\.[^./]+$/, "") + ".pdf"
+              : name.replace(/\.[^./]+$/, ""),
             overwrite: true,
           },
           (error, res) => (error ? reject(error) : resolve(res))
