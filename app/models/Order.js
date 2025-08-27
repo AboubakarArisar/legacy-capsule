@@ -70,8 +70,6 @@ const orderSchema = new mongoose.Schema(
 // Index for common queries
 orderSchema.index({ userId: 1, createdAt: -1 });
 orderSchema.index({ status: 1 });
-orderSchema.index({ stripeSessionId: 1 });
-orderSchema.index({ stripePaymentIntentId: 1 });
 orderSchema.index({ createdAt: -1 });
 
 // Virtual for order total

@@ -316,8 +316,8 @@ export default function Home() {
                 className='text-black hover:text-blue-600 cursor-pointer'
               >
                 Reseller
-              </a>
-              <a
+          </a>
+          <a
                 href='#contact'
                 className='text-black hover:text-blue-600 cursor-pointer'
               >

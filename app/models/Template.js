@@ -95,3 +95,4 @@ templateSchema.methods.incrementDownloadCount = function() {
 const Template = mongoose.models.Template || mongoose.model('Template', templateSchema);
 
 export default Template;
+ 
