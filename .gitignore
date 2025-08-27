@@ -10,6 +10,11 @@
 !.yarn/releases
 !.yarn/versions
 
+.env
+pnpm-lock.yaml
+scripts/*
+
+
 # testing
 /coverage
 
