@@ -99,17 +99,38 @@ export default function AdminDashboard() {
       if (isPdf) setIsUploadingPdf(true);
       else setIsUploadingImage(true);
 
-      const fd = new FormData();
-      fd.append("file", file);
+      // 1) Ask server for signature
+      const sigRes = await fetch("/api/upload/signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: isPdf ? "pdf" : "image" }),
+      });
+      const sig = await sigRes.json();
+      if (!sigRes.ok || !sig.success)
+        throw new Error(sig.error || "Signature failed");
 
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Upload failed");
+      // 2) Build upload form for Cloudinary unsigned direct upload
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${sig.cloudName}/${
+        isPdf ? "raw" : "image"
+      }/upload`;
+      const form = new FormData();
+      form.append("file", file);
+      form.append("api_key", sig.apiKey);
+      form.append("timestamp", String(sig.timestamp));
+      if (sig.folder) form.append("folder", sig.folder);
+      form.append("signature", sig.signature);
 
+      // 3) Upload directly to Cloudinary
+      const upRes = await fetch(uploadUrl, { method: "POST", body: form });
+      const up = await upRes.json();
+      if (!upRes.ok)
+        throw new Error(up.error?.message || "Cloudinary upload failed");
+
+      // 4) Save URL to form state
       if (isPdf) {
-        setFormData((prev) => ({ ...prev, pdfUrl: data.url }));
+        setFormData((prev) => ({ ...prev, pdfUrl: up.secure_url }));
       } else {
-        setFormData((prev) => ({ ...prev, imageUrl: data.url }));
+        setFormData((prev) => ({ ...prev, imageUrl: up.secure_url }));
       }
     } catch (e) {
       alert((e && e.message) || "Upload failed");
@@ -834,67 +855,78 @@ export default function AdminDashboard() {
 
         {/* Templates as Cards */}
         {activeTab === "templates" ? (
-          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6'>
-            {templates.map((t) => (
-              <Card key={t._id} className='overflow-hidden'>
-                <CardHeader>
-                  <CardTitle className='flex items-center justify-between'>
-                    <span className='truncate text-black'>{t.title}</span>
-                    <span className='text-sm text-slate-600'>${t.price}</span>
-                  </CardTitle>
-                  <CardDescription className='flex items-center gap-2'>
-                    <span className='px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-700'>
-                      {t.category}
-                    </span>
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full ${
-                        t.isActive
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {t.isActive ? "Active" : "Inactive"}
-                    </span>
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className='flex items-center justify-between text-sm'>
-                    <div className='text-slate-700'>
-                      <div className='mb-1'>
-                        {t.pdfUrl ? "📄 PDF Available" : "No PDF"}
+          <>
+            <div className='flex justify-between items-center mt-6'>
+              <h2 className='text-xl font-semibold text-black'>
+                Template Management
+              </h2>
+              <Button onClick={() => setShowCreateModal(true)}>
+                <Plus className='w-4 h-4 mr-2' />
+                Create Template
+              </Button>
+            </div>
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6'>
+              {templates.map((t) => (
+                <Card key={t._id} className='overflow-hidden'>
+                  <CardHeader>
+                    <CardTitle className='flex items-center justify-between'>
+                      <span className='truncate text-black'>{t.title}</span>
+                      <span className='text-sm text-slate-600'>${t.price}</span>
+                    </CardTitle>
+                    <CardDescription className='flex items-center gap-2'>
+                      <span className='px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-700'>
+                        {t.category}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 text-xs rounded-full ${
+                          t.isActive
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {t.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className='flex items-center justify-between text-sm'>
+                      <div className='text-slate-700'>
+                        <div className='mb-1'>
+                          {t.pdfUrl ? "📄 PDF Available" : "No PDF"}
+                        </div>
+                        <div>
+                          {t.imageUrl ? "🖼️ Preview Image" : "No Preview"}
+                        </div>
                       </div>
-                      <div>
-                        {t.imageUrl ? "🖼️ Preview Image" : "No Preview"}
+                      <div className='flex gap-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => openEditModal(t)}
+                        >
+                          <Edit className='w-4 h-4' />
+                        </Button>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => handleDeleteTemplate(t._id)}
+                        >
+                          <Trash2 className='w-4 h-4' />
+                        </Button>
                       </div>
                     </div>
-                    <div className='flex gap-2'>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => openEditModal(t)}
-                      >
-                        <Edit className='w-4 h-4' />
-                      </Button>
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        onClick={() => handleDeleteTemplate(t._id)}
-                      >
-                        <Trash2 className='w-4 h-4' />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {templates.length === 0 && (
-              <Card className='col-span-full'>
-                <CardContent className='py-8 text-center text-slate-600'>
-                  No templates yet.
-                </CardContent>
-              </Card>
-            )}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {templates.length === 0 && (
+                <Card className='col-span-full'>
+                  <CardContent className='py-8 text-center text-slate-600'>
+                    No templates yet.
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </>
         ) : null}
 
         {/* Orders as Cards */}
