@@ -38,6 +38,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
+  const [reqName, setReqName] = useState("");
+  const [reqEmail, setReqEmail] = useState("");
+  const [reqDesc, setReqDesc] = useState("");
+  const [reqSubmitting, setReqSubmitting] = useState(false);
 
   useEffect(() => {
     fetchTemplates();
@@ -65,6 +69,34 @@ export default function Home() {
       window.location.href = "/";
     } catch (error) {
       console.error("Logout error:", error);
+    }
+  };
+
+  const submitCustomRequest = async (e) => {
+    e.preventDefault();
+    if (!reqName || !reqEmail || !reqDesc) {
+      alert("Please fill in Name, Email and Template Description.");
+      return;
+    }
+    try {
+      setReqSubmitting(true);
+      const res = await fetch("/api/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ Name: reqName, Email: reqEmail, TemplateDescription: reqDesc }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to send request");
+      }
+      setReqName("");
+      setReqEmail("");
+      setReqDesc("");
+      alert("Request sent successfully. We'll get back to you soon.");
+    } catch (err) {
+      alert(err.message || "Failed to send request");
+    } finally {
+      setReqSubmitting(false);
     }
   };
 
@@ -412,7 +444,7 @@ export default function Home() {
       </section>
 
       {/* Why Choose Our PDFs Section */}
-      <section className='py-20 bg-slate-50'>
+      <section className='py-20 bg-slate-50 text-black'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
           <div className='text-center mb-16'>
             <h2 className='text-4xl font-bold text-black mb-4'>
@@ -591,7 +623,7 @@ export default function Home() {
       </section>
 
       {/* Customization Section */}
-      <section className='py-20 bg-white'>
+      <section className='py-20 bg-white text-black'>
         <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
           <div className='grid lg:grid-cols-2 gap-12 items-center'>
             <div>
@@ -609,7 +641,7 @@ export default function Home() {
               <h3 className='text-2xl font-semibold mb-6'>
                 Custom Template Request
               </h3>
-              <form className='space-y-4'>
+              <form className='space-y-4' onSubmit={submitCustomRequest}>
                 <div>
                   <label className='block text-sm font-medium text-black mb-2'>
                     Name
@@ -617,6 +649,8 @@ export default function Home() {
                   <input
                     type='text'
                     className='w-full px-3 py-2 border border-slate-300 rounded-md'
+                    value={reqName}
+                    onChange={(e) => setReqName(e.target.value)}
                   />
                 </div>
                 <div>
@@ -626,19 +660,23 @@ export default function Home() {
                   <input
                     type='email'
                     className='w-full px-3 py-2 border border-slate-300 rounded-md'
+                    value={reqEmail}
+                    onChange={(e) => setReqEmail(e.target.value)}
                   />
                 </div>
                 <div>
                   <label className='block text-sm font-medium text-black mb-2'>
-                    Project Description
+                    Template Description
                   </label>
                   <textarea
                     rows='4'
                     className='w-full px-3 py-2 border border-slate-300 rounded-md'
+                    value={reqDesc}
+                    onChange={(e) => setReqDesc(e.target.value)}
                   ></textarea>
                 </div>
-                <Button type='submit' className='w-full'>
-                  Submit Request
+                <Button type='submit' className='w-full' disabled={reqSubmitting}>
+                  {reqSubmitting ? "Sending..." : "Submit Request"}
                 </Button>
               </form>
             </div>

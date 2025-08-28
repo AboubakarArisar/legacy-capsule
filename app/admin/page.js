@@ -25,6 +25,7 @@ import {
 export default function AdminDashboard() {
   const [templates, setTemplates] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -42,6 +43,7 @@ export default function AdminDashboard() {
     pdfUrl: "",
     imageUrl: "",
   });
+  const [activeTab, setActiveTab] = useState("templates");
 
   const categories = [
     "leaving-a-memory",
@@ -61,13 +63,15 @@ export default function AdminDashboard() {
 
   const fetchAdminData = async () => {
     try {
-      const [templatesRes, ordersRes] = await Promise.all([
+      const [templatesRes, ordersRes, requestsRes] = await Promise.all([
         fetch("/api/templates"),
         fetch("/api/orders"),
+        fetch("/api/requests"),
       ]);
 
       const templatesData = await templatesRes.json();
       const ordersData = await ordersRes.json();
+      const requestsData = await requestsRes.json();
 
       if (templatesData.success) {
         setTemplates(templatesData.templates);
@@ -75,6 +79,10 @@ export default function AdminDashboard() {
 
       if (ordersData.success) {
         setOrders(ordersData.orders);
+      }
+
+      if (requestsData.success) {
+        setRequests(requestsData.requests || []);
       }
     } catch (error) {
       console.error("Error fetching admin data:", error);
@@ -275,9 +283,13 @@ export default function AdminDashboard() {
   };
 
   const totalRevenue = orders
-    .filter((order) => order.status === 'completed' || order.paymentStatus === 'paid')
+    .filter(
+      (order) => order.status === "completed" || order.paymentStatus === "paid"
+    )
     .reduce((sum, order) => sum + (Number(order.amount) || 0), 0);
-  const totalOrders = orders.filter((order) => order.status === 'completed' || order.paymentStatus === 'paid').length;
+  const totalOrders = orders.filter(
+    (order) => order.status === "completed" || order.paymentStatus === "paid"
+  ).length;
   const activeTemplates = templates.filter((t) => t.isActive).length;
 
   const handleLogout = async () => {
@@ -360,157 +372,6 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Template Management */}
-        <Card className='mb-8'>
-          <CardHeader>
-            <div className='flex justify-between items-center'>
-              <div>
-                <CardTitle>Template Management</CardTitle>
-                <CardDescription>
-                  Create, edit, and manage PDF templates
-                </CardDescription>
-              </div>
-              <Button onClick={() => setShowCreateModal(true)}>
-                <Plus className='w-4 h-4 mr-2' />
-                Create Template
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className='overflow-x-auto'>
-              <table className='w-full'>
-                <thead>
-                  <tr className='border-b'>
-                    <th className='text-left py-2 text-black'>Title</th>
-                    <th className='text-left py-2 text-black'>Category</th>
-                    <th className='text-left py-2 text-black'>Price</th>
-                    <th className='text-left py-2 text-black'>PDF File</th>
-                    <th className='text-left py-2 text-black'>Preview Image</th>
-                    <th className='text-left py-2 text-black'>Status</th>
-                    <th className='text-left py-2 text-black'>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {templates.map((template) => (
-                    <tr key={template._id} className='border-b'>
-                      <td className='py-2 text-black'>{template.title}</td>
-                      <td className='py-2 text-black'>{template.category}</td>
-                      <td className='py-2 text-black'>${template.price}</td>
-                      <td className='py-2 text-black'>
-                        {template.pdfUrl ? (
-                          <div className='text-xs'>
-                            <p className='font-medium'>📄 PDF Available</p>
-                            <p className='text-slate-600'>Ready for download</p>
-                          </div>
-                        ) : (
-                          <span className='text-red-500 text-xs'>No PDF</span>
-                        )}
-                      </td>
-                      <td className='py-2 text-black'>
-                        {template.imageUrl ? (
-                          <div className='text-xs'>
-                            <p className='font-medium'>🖼️ Preview Image</p>
-                            <p className='text-slate-600'>Available</p>
-                          </div>
-                        ) : (
-                          <span className='text-slate-500 text-xs'>
-                            No Preview
-                          </span>
-                        )}
-                      </td>
-                      <td className='py-2'>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            template.isActive
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {template.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                      <td className='py-2'>
-                        <div className='flex space-x-2'>
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={() => openEditModal(template)}
-                          >
-                            <Edit className='w-4 h-4' />
-                          </Button>
-                          <Button
-                            variant='outline'
-                            size='sm'
-                            onClick={() => handleDeleteTemplate(template._id)}
-                          >
-                            <Trash2 className='w-4 h-4' />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Recent Orders */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Orders</CardTitle>
-            <CardDescription>
-              Latest customer orders and payments
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className='overflow-x-auto'>
-              <table className='w-full'>
-                <thead>
-                  <tr className='border-b'>
-                    <th className='text-left py-2 text-black'>Order ID</th>
-                    <th className='text-left py-2 text-black'>Customer</th>
-                    <th className='text-left py-2 text-black'>Template</th>
-                    <th className='text-left py-2 text-black'>Amount</th>
-                    <th className='text-left py-2 text-black'>Status</th>
-                    <th className='text-left py-2 text-black'>Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.slice(0, 10).map((order) => (
-                    <tr key={order._id} className='border-b'>
-                      <td className='py-2 text-black'>{order._id.slice(-8)}</td>
-                      <td className='py-2 text-black'>
-                        {order.customerEmail || "N/A"}
-                      </td>
-                      <td className='py-2 text-black'>
-                        {order.templateTitle || "N/A"}
-                      </td>
-                      <td className='py-2 text-black'>${order.amount}</td>
-                      <td className='py-2'>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs ${
-                            order.status === "completed"
-                              ? "bg-green-100 text-green-800"
-                              : order.status === "pending"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className='py-2 text-black'>
-                        {new Date(order.createdAt).toLocaleDateString()}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Create Template Modal */}
         {showCreateModal && (
@@ -945,8 +806,185 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* Template Requests Tab */}
+        <div className='flex items-center space-x-4'>
+          <Button
+            variant={activeTab === "templates" ? "default" : "outline"}
+            size='sm'
+            onClick={() => setActiveTab("templates")}
+          >
+            Templates
+          </Button>
+          <Button
+            variant={activeTab === "orders" ? "default" : "outline"}
+            size='sm'
+            onClick={() => setActiveTab("orders")}
+          >
+            Orders
+          </Button>
+          <Button
+            variant={activeTab === "requests" ? "default" : "outline"}
+            size='sm'
+            onClick={() => setActiveTab("requests")}
+          >
+            Template Requests
+          </Button>
+        </div>
+
+        {/* Templates as Cards */}
+        {activeTab === "templates" ? (
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6'>
+            {templates.map((t) => (
+              <Card key={t._id} className='overflow-hidden'>
+                <CardHeader>
+                  <CardTitle className='flex items-center justify-between'>
+                    <span className='truncate text-black'>{t.title}</span>
+                    <span className='text-sm text-slate-600'>${t.price}</span>
+                  </CardTitle>
+                  <CardDescription className='flex items-center gap-2'>
+                    <span className='px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-700'>
+                      {t.category}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 text-xs rounded-full ${
+                        t.isActive
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {t.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className='flex items-center justify-between text-sm'>
+                    <div className='text-slate-700'>
+                      <div className='mb-1'>
+                        {t.pdfUrl ? "📄 PDF Available" : "No PDF"}
+                      </div>
+                      <div>
+                        {t.imageUrl ? "🖼️ Preview Image" : "No Preview"}
+                      </div>
+                    </div>
+                    <div className='flex gap-2'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => openEditModal(t)}
+                      >
+                        <Edit className='w-4 h-4' />
+                      </Button>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => handleDeleteTemplate(t._id)}
+                      >
+                        <Trash2 className='w-4 h-4' />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {templates.length === 0 && (
+              <Card className='col-span-full'>
+                <CardContent className='py-8 text-center text-slate-600'>
+                  No templates yet.
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        ) : null}
+
+        {/* Orders as Cards */}
+        {activeTab === "orders" ? (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6'>
+            {orders.map((o) => (
+              <Card key={o._id}>
+                <CardHeader>
+                  <CardTitle className='flex items-center justify-between'>
+                    <span className='text-sm text-slate-700'>
+                      Order #{String(o._id).slice(-8)}
+                    </span>
+                    <span className='font-semibold text-black'>
+                      ${o.amount}
+                    </span>
+                  </CardTitle>
+                  <CardDescription className='flex items-center gap-2'>
+                    <span
+                      className={`px-2 py-0.5 text-xs rounded-full ${
+                        o.status === "completed"
+                          ? "bg-green-100 text-green-700"
+                          : o.status === "pending"
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {o.status}
+                    </span>
+                    <span className='text-xs text-slate-500'>
+                      {new Date(o.createdAt).toLocaleString()}
+                    </span>
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className='text-sm text-slate-700'>
+                  <div className='mb-1'>
+                    Customer: {o.customerEmail || "N/A"}
+                  </div>
+                  <div>
+                    Template:{" "}
+                    {o.templateTitle ||
+                      (o.templateId && o.templateId.title) ||
+                      "N/A"}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {orders.length === 0 && (
+              <Card className='col-span-full'>
+                <CardContent className='py-8 text-center text-slate-600'>
+                  No orders found.
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        ) : null}
+
+        {/* Requests as Cards */}
+        {activeTab === "requests" ? (
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6'>
+            {requests.map((r) => (
+              <Card key={r._id}>
+                <CardHeader>
+                  <CardTitle className='text-black'>{r.Name}</CardTitle>
+                  <CardDescription className='text-slate-600'>
+                    {r.Email}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p
+                    className='text-sm text-slate-700 mb-3 line-clamp-4'
+                    title={r.TemplateDescription}
+                  >
+                    {r.TemplateDescription}
+                  </p>
+                  <div className='text-xs text-slate-500'>
+                    Submitted {new Date(r.createdAt).toLocaleString()}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {requests.length === 0 && (
+              <Card className='col-span-full'>
+                <CardContent className='py-8 text-center text-slate-600'>
+                  No requests yet.
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
- 
