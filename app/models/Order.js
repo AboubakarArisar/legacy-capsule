@@ -10,8 +10,18 @@ const orderSchema = new mongoose.Schema(
     templateId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Template",
-      required: [true, "Template ID is required"],
+      // no longer required to allow bundle orders
     },
+    bundleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Bundle",
+    },
+    templateIdsPurchased: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Template",
+      },
+    ],
     stripeSessionId: {
       type: String,
       unique: true,

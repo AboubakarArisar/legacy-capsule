@@ -52,6 +52,19 @@ export async function GET(request) {
       order.stripePaymentIntentId = session.payment_intent?.toString();
       await order.save();
 
+      if (
+        order.bundleId &&
+        Array.isArray(order.templateIdsPurchased) &&
+        order.templateIdsPurchased.length > 0
+      ) {
+        // For bundles: provide a zip download endpoint per order
+        return NextResponse.json({
+          success: true,
+          downloadUrl: `/api/bundles/download/${order._id}`,
+          templateTitle: "Bundle Download",
+        });
+      }
+
       const template = await Template.findById(order.templateId);
       if (!template) {
         return NextResponse.json(

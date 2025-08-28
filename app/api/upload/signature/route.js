@@ -7,7 +7,6 @@ export async function POST(request) {
     const apiKey = process.env.CLOUDINARY_API_KEY;
     const apiSecret = process.env.CLOUDINARY_API_SECRET;
 
-    // Log env presence without leaking values
     console.log("[CloudinarySig] envs:", {
       CLOUDINARY_CLOUD_NAME: !!cloudName,
       CLOUDINARY_API_KEY: !!apiKey,
@@ -29,22 +28,28 @@ export async function POST(request) {
 
     const type =
       body?.type === "pdf" ? "pdf" : body?.type === "image" ? "image" : "image";
-    const folder =
+    const folder = (
       body?.folder ||
-      (type === "pdf" ? "legacy-capsule/templates" : "legacy-capsule");
+      (type === "pdf" ? "legacy-capsule/templates" : "legacy-capsule")
+    ).toString();
+    const publicId = body?.public_id ? String(body.public_id) : undefined;
 
     const timestamp = Math.floor(Date.now() / 1000);
 
-    // Build params to sign (alphabetical keys)
-    const toSign = new URLSearchParams();
-    if (folder) toSign.append("folder", folder);
-    toSign.append("timestamp", String(timestamp));
+    // Build params to sign (ALPHABETICAL keys, NO URL ENCODING)
+    const params = { folder, timestamp: String(timestamp) };
+    if (publicId) params.public_id = publicId;
 
-    const signatureBase = toSign.toString() + apiSecret;
+    const keys = Object.keys(params).sort();
+    const stringToSign = keys.map((k) => `${k}=${params[k]}`).join("&");
+
     const signature = crypto
       .createHash("sha1")
-      .update(signatureBase)
+      .update(stringToSign + apiSecret)
       .digest("hex");
+
+    console.log("[CloudinarySig] string_to_sign:", stringToSign);
+    console.log("[CloudinarySig] signature (first8):", signature.slice(0, 8));
 
     return NextResponse.json({
       success: true,
@@ -53,6 +58,7 @@ export async function POST(request) {
       timestamp,
       signature,
       folder,
+      public_id: publicId,
     });
   } catch (err) {
     console.error("[CloudinarySig] error:", err);

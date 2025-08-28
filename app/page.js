@@ -35,7 +35,9 @@ import Link from "next/link";
 
 export default function Home() {
   const [templates, setTemplates] = useState([]);
+  const [bundles, setBundles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [bundlesLoading, setBundlesLoading] = useState(true);
   const [user, setUser] = useState(null);
   const [userLoading, setUserLoading] = useState(true);
   const [reqName, setReqName] = useState("");
@@ -45,6 +47,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchTemplates();
+    fetchBundles();
     checkAuthStatus();
   }, []);
 
@@ -83,7 +86,11 @@ export default function Home() {
       const res = await fetch("/api/requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ Name: reqName, Email: reqEmail, TemplateDescription: reqDesc }),
+        body: JSON.stringify({
+          Name: reqName,
+          Email: reqEmail,
+          TemplateDescription: reqDesc,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
@@ -127,50 +134,17 @@ export default function Home() {
     }
   };
 
-  const bundleDeals = [
-    {
-      id: 1,
-      title: "Family Legacy Bundle",
-      description: "Complete family memory preservation package",
-      price: 99,
-      originalPrice: 149,
-      includes: [
-        "Wedding Memory Book",
-        "Family Recipe Collection",
-        "Life Story Journal",
-        "Baby First Year",
-      ],
-      icon: Users,
-    },
-    {
-      id: 2,
-      title: "Milestone Bundle",
-      description: "Capture all life's important moments",
-      price: 79.99,
-      originalPrice: 119.99,
-      includes: [
-        "Birthday Gift Memory",
-        "Wedding Memory Book",
-        "Graduation Memory",
-        "Anniversary Book",
-      ],
-      icon: Star,
-    },
-    {
-      id: 3,
-      title: "Personal Growth Bundle",
-      description: "Document your personal journey and achievements",
-      price: 64.99,
-      originalPrice: 89.99,
-      includes: [
-        "Life Story Journal",
-        "Goal Setting",
-        "Achievement Tracker",
-        "Reflection Journal",
-      ],
-      icon: Crown,
-    },
-  ];
+  const fetchBundles = async () => {
+    try {
+      const res = await fetch("/api/bundles");
+      const data = await res.json();
+      if (data.success) setBundles(data.bundles || []);
+    } catch (e) {
+      console.error("Error fetching bundles:", e);
+    } finally {
+      setBundlesLoading(false);
+    }
+  };
 
   const resellerBenefits = [
     "Earn 30% commission on every sale",
@@ -282,6 +256,28 @@ export default function Home() {
     }
   };
 
+  const handleBuyBundle = async (bundleId) => {
+    try {
+      const response = await fetch("/api/payment/create-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          bundleId,
+          successUrl: `${window.location.origin}/payment/success`,
+          cancelUrl: `${window.location.origin}/payment/cancel`,
+        }),
+      });
+      const data = await response.json();
+      if (data.success && data.sessionUrl) {
+        window.location.href = data.sessionUrl;
+      }
+    } catch (e) {
+      console.error("Error creating bundle payment session:", e);
+    }
+  };
+
   const handleDownloadTemplate = async (templateId) => {
     try {
       const response = await fetch(`/api/templates/download/${templateId}`, {
@@ -292,7 +288,6 @@ export default function Home() {
       const data = await response.json();
 
       if (data.success) {
-        // Create a temporary link and trigger download
         const link = document.createElement("a");
         link.href = data.downloadUrl;
         link.download = data.fileName;
@@ -302,7 +297,6 @@ export default function Home() {
         document.body.removeChild(link);
       } else {
         if (data.error === "Purchase required to download this template") {
-          // Redirect to payment or show payment modal
           alert("Please purchase this template to download it.");
         } else {
           alert("Error downloading template: " + data.error);
@@ -576,49 +570,64 @@ export default function Home() {
               occasions
             </p>
           </div>
-          <div className='grid md:grid-cols-3 gap-8'>
-            {bundleDeals.map((bundle) => {
-              const IconComponent = bundle.icon;
-              return (
-                <Card key={bundle.id} className='pricing-card relative'>
+          {bundlesLoading ? (
+            <div className='text-center py-12'>
+              <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto'></div>
+              <p className='mt-4 text-black'>Loading bundles...</p>
+            </div>
+          ) : bundles.length === 0 ? (
+            <div className='text-center py-12'>
+              <p className='text-black'>No bundles available right now.</p>
+            </div>
+          ) : (
+            <div className='grid md:grid-cols-3 gap-8'>
+              {bundles.map((bundle) => (
+                <Card key={bundle._id} className='pricing-card relative'>
                   <div className='absolute -top-4 left-1/2 transform -translate-x-1/2'>
                     <span className='bg-red-500 text-white px-4 py-2 rounded-full text-sm font-semibold'>
-                      Save ${bundle.originalPrice - bundle.price}
+                      Save {bundle.savingsPercent}% ($
+                      {Math.max(
+                        0,
+                        (bundle.originalTotal || 0) - (bundle.bundlePrice || 0)
+                      )}
+                      )
                     </span>
                   </div>
                   <CardHeader className='text-center'>
-                    <div className='w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4'>
-                      <IconComponent className='w-8 h-8 text-purple-600' />
-                    </div>
                     <CardTitle>{bundle.title}</CardTitle>
                     <CardDescription>{bundle.description}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className='text-center mb-6'>
                       <span className='text-4xl font-bold text-black'>
-                        ${bundle.price}
+                        ${bundle.bundlePrice}
                       </span>
                       <span className='text-lg text-black line-through ml-2'>
-                        ${bundle.originalPrice}
+                        ${bundle.originalTotal}
                       </span>
                     </div>
                     <ul className='space-y-2 mb-6'>
-                      {bundle.includes.map((item, index) => (
+                      {bundle.templateIds.map((t) => (
                         <li
-                          key={index}
+                          key={t._id}
                           className='flex items-center text-sm text-black'
                         >
                           <CheckCircle className='w-4 h-4 text-green-500 mr-2' />
-                          {item}
+                          {t.title} (${t.price})
                         </li>
                       ))}
                     </ul>
-                    <Button className='w-full'>Get Bundle</Button>
+                    <Button
+                      className='w-full'
+                      onClick={() => handleBuyBundle(bundle._id)}
+                    >
+                      Get Bundle
+                    </Button>
                   </CardContent>
                 </Card>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -675,7 +684,11 @@ export default function Home() {
                     onChange={(e) => setReqDesc(e.target.value)}
                   ></textarea>
                 </div>
-                <Button type='submit' className='w-full' disabled={reqSubmitting}>
+                <Button
+                  type='submit'
+                  className='w-full'
+                  disabled={reqSubmitting}
+                >
                   {reqSubmitting ? "Sending..." : "Submit Request"}
                 </Button>
               </form>

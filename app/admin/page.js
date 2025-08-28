@@ -26,9 +26,11 @@ export default function AdminDashboard() {
   const [templates, setTemplates] = useState([]);
   const [orders, setOrders] = useState([]);
   const [requests, setRequests] = useState([]);
+  const [bundles, setBundles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateBundleModal, setShowCreateBundleModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingPdf, setIsUploadingPdf] = useState(false);
@@ -42,6 +44,13 @@ export default function AdminDashboard() {
     isActive: true,
     pdfUrl: "",
     imageUrl: "",
+  });
+  const [bundleForm, setBundleForm] = useState({
+    title: "",
+    description: "",
+    bundlePrice: "",
+    isActive: true,
+    selectedTemplateIds: [],
   });
   const [activeTab, setActiveTab] = useState("templates");
 
@@ -63,15 +72,18 @@ export default function AdminDashboard() {
 
   const fetchAdminData = async () => {
     try {
-      const [templatesRes, ordersRes, requestsRes] = await Promise.all([
-        fetch("/api/templates"),
-        fetch("/api/orders"),
-        fetch("/api/requests"),
-      ]);
+      const [templatesRes, ordersRes, requestsRes, bundlesRes] =
+        await Promise.all([
+          fetch("/api/templates"),
+          fetch("/api/orders"),
+          fetch("/api/requests"),
+          fetch("/api/bundles?all=true"),
+        ]);
 
       const templatesData = await templatesRes.json();
       const ordersData = await ordersRes.json();
       const requestsData = await requestsRes.json();
+      const bundlesData = await bundlesRes.json();
 
       if (templatesData.success) {
         setTemplates(templatesData.templates);
@@ -83,6 +95,10 @@ export default function AdminDashboard() {
 
       if (requestsData.success) {
         setRequests(requestsData.requests || []);
+      }
+
+      if (bundlesData.success) {
+        setBundles(bundlesData.bundles || []);
       }
     } catch (error) {
       console.error("Error fetching admin data:", error);
@@ -319,6 +335,76 @@ export default function AdminDashboard() {
       window.location.href = "/";
     } catch (e) {
       // no-op
+    }
+  };
+
+  const originalTotalPreview = templates
+    .filter((t) => bundleForm.selectedTemplateIds.includes(t._id))
+    .reduce((sum, t) => sum + Number(t.price || 0), 0);
+
+  const handleToggleTemplateInBundle = (id) => {
+    setBundleForm((prev) => {
+      const exists = prev.selectedTemplateIds.includes(id);
+      return {
+        ...prev,
+        selectedTemplateIds: exists
+          ? prev.selectedTemplateIds.filter((x) => x !== id)
+          : [...prev.selectedTemplateIds, id],
+      };
+    });
+  };
+
+  const handleCreateBundle = async (e) => {
+    e.preventDefault();
+    if (bundleForm.selectedTemplateIds.length < 2) {
+      alert("Select at least two templates for a bundle");
+      return;
+    }
+    if (!bundleForm.bundlePrice) {
+      alert("Enter bundle price");
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const res = await fetch("/api/bundles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: bundleForm.title,
+          description: bundleForm.description,
+          templateIds: bundleForm.selectedTemplateIds,
+          bundlePrice: parseFloat(bundleForm.bundlePrice),
+          isActive: bundleForm.isActive,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed");
+      setShowCreateBundleModal(false);
+      setBundleForm({
+        title: "",
+        description: "",
+        bundlePrice: "",
+        isActive: true,
+        selectedTemplateIds: [],
+      });
+      fetchAdminData();
+      alert("Bundle created successfully!");
+    } catch (err) {
+      alert(err.message || "Failed to create bundle");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteBundle = async (bundleId) => {
+    if (!confirm("Delete this bundle?")) return;
+    try {
+      const res = await fetch(`/api/bundles/${bundleId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Failed");
+      fetchAdminData();
+    } catch (err) {
+      alert(err.message || "Failed to delete bundle");
     }
   };
 
@@ -851,6 +937,13 @@ export default function AdminDashboard() {
           >
             Template Requests
           </Button>
+          <Button
+            variant={activeTab === "bundles" ? "default" : "outline"}
+            size='sm'
+            onClick={() => setActiveTab("bundles")}
+          >
+            Bundles
+          </Button>
         </div>
 
         {/* Templates as Cards */}
@@ -1015,6 +1108,254 @@ export default function AdminDashboard() {
               </Card>
             )}
           </div>
+        ) : null}
+
+        {/* Bundles Tab */}
+        {activeTab === "bundles" ? (
+          <>
+            <div className='flex justify-between items-center mt-6'>
+              <h2 className='text-xl font-semibold text-black'>
+                Bundle Management
+              </h2>
+              <Button onClick={() => setShowCreateBundleModal(true)}>
+                <Plus className='w-4 h-4 mr-2' />
+                Create Bundle
+              </Button>
+            </div>
+            <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6'>
+              {bundles.map((b) => (
+                <Card key={b._id} className='overflow-hidden'>
+                  <CardHeader>
+                    <CardTitle className='flex items-center justify-between'>
+                      <span className='truncate text-black'>{b.title}</span>
+                      <span className='text-sm text-slate-600'>
+                        ${b.bundlePrice}
+                      </span>
+                    </CardTitle>
+                    <CardDescription className='flex items-center gap-2'>
+                      <span className='px-2 py-0.5 text-xs rounded-full bg-slate-100 text-slate-700'>
+                        {b.templateIds.length} templates
+                      </span>
+                      <span className='px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700'>
+                        Save {b.savingsPercent}% ($
+                        {Math.max(
+                          0,
+                          (b.originalTotal || 0) - (b.bundlePrice || 0)
+                        )}
+                        )
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 text-xs rounded-full ${
+                          b.isActive
+                            ? "bg-green-100 text-green-700"
+                            : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {b.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className='text-sm text-slate-700'>
+                      <div className='mb-2'>Original: ${b.originalTotal}</div>
+                      <div className='mb-2'>Includes:</div>
+                      <ul className='list-disc ml-5 mb-4'>
+                        {b.templateIds.map((t) => (
+                          <li key={t._id}>
+                            {t.title} (${t.price})
+                          </li>
+                        ))}
+                      </ul>
+                      <div className='flex gap-2'>
+                        <Button
+                          variant='outline'
+                          size='sm'
+                          onClick={() => handleDeleteBundle(b._id)}
+                        >
+                          <Trash2 className='w-4 h-4' />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+              {bundles.length === 0 && (
+                <Card className='col-span-full'>
+                  <CardContent className='py-8 text-center text-slate-600'>
+                    No bundles yet.
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+
+            {/* Create Bundle Modal */}
+            {showCreateBundleModal && (
+              <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
+                <div className='bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto'>
+                  <div className='flex justify-between items-center mb-6'>
+                    <h2 className='text-2xl font-bold text-black'>
+                      Create Bundle
+                    </h2>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      onClick={() => {
+                        setShowCreateBundleModal(false);
+                        setBundleForm({
+                          title: "",
+                          description: "",
+                          bundlePrice: "",
+                          isActive: true,
+                          selectedTemplateIds: [],
+                        });
+                      }}
+                    >
+                      <X className='w-4 h-4' />
+                    </Button>
+                  </div>
+
+                  <form
+                    onSubmit={handleCreateBundle}
+                    className='space-y-4 text-black'
+                  >
+                    <div>
+                      <label className='block text-sm font-medium text-black mb-2'>
+                        Title
+                      </label>
+                      <input
+                        type='text'
+                        required
+                        className='w-full px-3 py-2 border border-slate-300 rounded-md'
+                        value={bundleForm.title}
+                        onChange={(e) =>
+                          setBundleForm((p) => ({
+                            ...p,
+                            title: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <label className='block text-sm font-medium text-black mb-2'>
+                        Description
+                      </label>
+                      <textarea
+                        rows='3'
+                        className='w-full px-3 py-2 border border-slate-300 rounded-md'
+                        value={bundleForm.description}
+                        onChange={(e) =>
+                          setBundleForm((p) => ({
+                            ...p,
+                            description: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+
+                    <div>
+                      <label className='block text-sm font-medium text-black mb-2'>
+                        Select Templates (at least 2)
+                      </label>
+                      <div className='space-y-2 max-h-48 overflow-y-auto border border-slate-200 rounded p-3'>
+                        {templates.map((t) => (
+                          <label
+                            key={t._id}
+                            className='flex items-center justify-between text-sm'
+                          >
+                            <div className='flex items-center gap-2'>
+                              <input
+                                type='checkbox'
+                                checked={bundleForm.selectedTemplateIds.includes(
+                                  t._id
+                                )}
+                                onChange={() =>
+                                  handleToggleTemplateInBundle(t._id)
+                                }
+                              />
+                              <span className='text-black'>{t.title}</span>
+                            </div>
+                            <span className='text-slate-600'>${t.price}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className='grid grid-cols-2 gap-4'>
+                      <div>
+                        <label className='block text-sm font-medium text-black mb-2'>
+                          Bundle Price ($)
+                        </label>
+                        <input
+                          type='number'
+                          step='0.01'
+                          required
+                          className='w-full px-3 py-2 border border-slate-300 rounded-md'
+                          value={bundleForm.bundlePrice}
+                          onChange={(e) =>
+                            setBundleForm((p) => ({
+                              ...p,
+                              bundlePrice: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className='block text-sm font-medium text-black mb-2'>
+                          Original Total
+                        </label>
+                        <div className='px-3 py-2 border border-slate-200 rounded-md bg-slate-50 text-black'>
+                          ${originalTotalPreview.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className='flex items-center space-x-2'>
+                      <input
+                        type='checkbox'
+                        id='bundleIsActive'
+                        checked={bundleForm.isActive}
+                        onChange={(e) =>
+                          setBundleForm((p) => ({
+                            ...p,
+                            isActive: e.target.checked,
+                          }))
+                        }
+                      />
+                      <label
+                        htmlFor='bundleIsActive'
+                        className='text-sm text-black'
+                      >
+                        Active Bundle
+                      </label>
+                    </div>
+
+                    <div className='flex justify-end space-x-2 pt-4'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={() => {
+                          setShowCreateBundleModal(false);
+                          setBundleForm({
+                            title: "",
+                            description: "",
+                            bundlePrice: "",
+                            isActive: true,
+                            selectedTemplateIds: [],
+                          });
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type='submit' disabled={isSubmitting}>
+                        {isSubmitting ? "Creating…" : "Create Bundle"}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </>
         ) : null}
       </div>
     </div>
